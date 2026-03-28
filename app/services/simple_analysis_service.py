@@ -2394,120 +2394,104 @@ class SimpleAnalysisService:
             analysis_id = f"{stock_symbol}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
 
             # 处理reports字段 - 从state中提取所有分析报告
+            # 按照实际执行顺序构建reports对象，确保标签页显示顺序与执行顺序一致
             reports = {}
             if 'state' in result:
                 try:
                     state = result['state']
 
-                    # 定义所有可能的报告字段
-                    report_fields = [
-                        'market_report',
-                        'sentiment_report',
-                        'news_report',
-                        'fundamentals_report',
-                        'investment_plan',
-                        'trader_investment_plan',
-                        'final_trade_decision'
-                    ]
+                    # =====================================================
+                    # 第一阶段：数据分析师报告（按配置顺序）
+                    # =====================================================
+                    # 1. 市场技术分析
+                    market_report = getattr(state, 'market_report', '') if hasattr(state, 'market_report') else state.get('market_report', '') if isinstance(state, dict) else ''
+                    if isinstance(market_report, str) and len(market_report.strip()) > 10:
+                        reports['market_report'] = market_report.strip()
 
-                    # 从state中提取报告内容
-                    for field in report_fields:
-                        if hasattr(state, field):
-                            value = getattr(state, field, "")
-                        elif isinstance(state, dict) and field in state:
-                            value = state[field]
-                        else:
-                            value = ""
+                    # 2. 市场情绪分析
+                    sentiment_report = getattr(state, 'sentiment_report', '') if hasattr(state, 'sentiment_report') else state.get('sentiment_report', '') if isinstance(state, dict) else ''
+                    if isinstance(sentiment_report, str) and len(sentiment_report.strip()) > 10:
+                        reports['sentiment_report'] = sentiment_report.strip()
 
-                        if isinstance(value, str) and len(value.strip()) > 10:  # 只保存有实际内容的报告
-                            reports[field] = value.strip()
+                    # 3. 新闻事件分析
+                    news_report = getattr(state, 'news_report', '') if hasattr(state, 'news_report') else state.get('news_report', '') if isinstance(state, dict) else ''
+                    if isinstance(news_report, str) and len(news_report.strip()) > 10:
+                        reports['news_report'] = news_report.strip()
 
-                    # 处理研究团队辩论状态报告
+                    # 4. 基本面分析
+                    fundamentals_report = getattr(state, 'fundamentals_report', '') if hasattr(state, 'fundamentals_report') else state.get('fundamentals_report', '') if isinstance(state, dict) else ''
+                    if isinstance(fundamentals_report, str) and len(fundamentals_report.strip()) > 10:
+                        reports['fundamentals_report'] = fundamentals_report.strip()
+
+                    # =====================================================
+                    # 第二阶段：多空辩论（InvestDebate）
+                    # =====================================================
                     if hasattr(state, 'investment_debate_state') or (isinstance(state, dict) and 'investment_debate_state' in state):
                         debate_state = getattr(state, 'investment_debate_state', None) if hasattr(state, 'investment_debate_state') else state.get('investment_debate_state')
                         if debate_state:
-                            # 提取多头研究员历史
-                            if hasattr(debate_state, 'bull_history'):
-                                bull_content = getattr(debate_state, 'bull_history', "")
-                            elif isinstance(debate_state, dict) and 'bull_history' in debate_state:
-                                bull_content = debate_state['bull_history']
-                            else:
-                                bull_content = ""
-
+                            # 5. 多头研究员
+                            bull_content = getattr(debate_state, 'bull_history', '') if hasattr(debate_state, 'bull_history') else debate_state.get('bull_history', '') if isinstance(debate_state, dict) else ''
                             if bull_content and len(bull_content.strip()) > 10:
                                 reports['bull_researcher'] = bull_content.strip()
 
-                            # 提取空头研究员历史
-                            if hasattr(debate_state, 'bear_history'):
-                                bear_content = getattr(debate_state, 'bear_history', "")
-                            elif isinstance(debate_state, dict) and 'bear_history' in debate_state:
-                                bear_content = debate_state['bear_history']
-                            else:
-                                bear_content = ""
-
+                            # 6. 空头研究员
+                            bear_content = getattr(debate_state, 'bear_history', '') if hasattr(debate_state, 'bear_history') else debate_state.get('bear_history', '') if isinstance(debate_state, dict) else ''
                             if bear_content and len(bear_content.strip()) > 10:
                                 reports['bear_researcher'] = bear_content.strip()
 
-                            # 提取研究经理决策
-                            if hasattr(debate_state, 'judge_decision'):
-                                decision_content = getattr(debate_state, 'judge_decision', "")
-                            elif isinstance(debate_state, dict) and 'judge_decision' in debate_state:
-                                decision_content = debate_state['judge_decision']
-                            else:
-                                decision_content = str(debate_state)
+                            # 7. 研究经理决策
+                            decision_content = getattr(debate_state, 'judge_decision', '') if hasattr(debate_state, 'judge_decision') else debate_state.get('judge_decision', '') if isinstance(debate_state, dict) else str(debate_state)
+                            if decision_content and len(str(decision_content).strip()) > 10:
+                                reports['research_team_decision'] = str(decision_content).strip()
 
-                            if decision_content and len(decision_content.strip()) > 10:
-                                reports['research_team_decision'] = decision_content.strip()
+                    # =====================================================
+                    # 第三阶段：交易计划（Trader）
+                    # =====================================================
+                    # 8. 交易员计划
+                    trader_plan = getattr(state, 'trader_investment_plan', '') if hasattr(state, 'trader_investment_plan') else state.get('trader_investment_plan', '') if isinstance(state, dict) else ''
+                    if isinstance(trader_plan, str) and len(trader_plan.strip()) > 10:
+                        reports['trader_investment_plan'] = trader_plan.strip()
 
-                    # 处理风险管理团队辩论状态报告
+                    # 兼容旧字段：investment_plan
+                    investment_plan = getattr(state, 'investment_plan', '') if hasattr(state, 'investment_plan') else state.get('investment_plan', '') if isinstance(state, dict) else ''
+                    if isinstance(investment_plan, str) and len(investment_plan.strip()) > 10 and 'trader_investment_plan' not in reports:
+                        reports['investment_plan'] = investment_plan.strip()
+
+                    # =====================================================
+                    # 第四阶段：风险评估辩论（RiskDebate）
+                    # =====================================================
                     if hasattr(state, 'risk_debate_state') or (isinstance(state, dict) and 'risk_debate_state' in state):
                         risk_state = getattr(state, 'risk_debate_state', None) if hasattr(state, 'risk_debate_state') else state.get('risk_debate_state')
                         if risk_state:
-                            # 提取激进分析师历史
-                            if hasattr(risk_state, 'risky_history'):
-                                risky_content = getattr(risk_state, 'risky_history', "")
-                            elif isinstance(risk_state, dict) and 'risky_history' in risk_state:
-                                risky_content = risk_state['risky_history']
-                            else:
-                                risky_content = ""
-
+                            # 9. 激进分析师
+                            risky_content = getattr(risk_state, 'risky_history', '') if hasattr(risk_state, 'risky_history') else risk_state.get('risky_history', '') if isinstance(risk_state, dict) else ''
                             if risky_content and len(risky_content.strip()) > 10:
                                 reports['risky_analyst'] = risky_content.strip()
 
-                            # 提取保守分析师历史
-                            if hasattr(risk_state, 'safe_history'):
-                                safe_content = getattr(risk_state, 'safe_history', "")
-                            elif isinstance(risk_state, dict) and 'safe_history' in risk_state:
-                                safe_content = risk_state['safe_history']
-                            else:
-                                safe_content = ""
-
+                            # 10. 保守分析师
+                            safe_content = getattr(risk_state, 'safe_history', '') if hasattr(risk_state, 'safe_history') else risk_state.get('safe_history', '') if isinstance(risk_state, dict) else ''
                             if safe_content and len(safe_content.strip()) > 10:
                                 reports['safe_analyst'] = safe_content.strip()
 
-                            # 提取中性分析师历史
-                            if hasattr(risk_state, 'neutral_history'):
-                                neutral_content = getattr(risk_state, 'neutral_history', "")
-                            elif isinstance(risk_state, dict) and 'neutral_history' in risk_state:
-                                neutral_content = risk_state['neutral_history']
-                            else:
-                                neutral_content = ""
-
+                            # 11. 中性分析师
+                            neutral_content = getattr(risk_state, 'neutral_history', '') if hasattr(risk_state, 'neutral_history') else risk_state.get('neutral_history', '') if isinstance(risk_state, dict) else ''
                             if neutral_content and len(neutral_content.strip()) > 10:
                                 reports['neutral_analyst'] = neutral_content.strip()
 
-                            # 提取投资组合经理决策
-                            if hasattr(risk_state, 'judge_decision'):
-                                risk_decision = getattr(risk_state, 'judge_decision', "")
-                            elif isinstance(risk_state, dict) and 'judge_decision' in risk_state:
-                                risk_decision = risk_state['judge_decision']
-                            else:
-                                risk_decision = str(risk_state)
+                            # 12. 投资组合经理决策
+                            risk_decision = getattr(risk_state, 'judge_decision', '') if hasattr(risk_state, 'judge_decision') else risk_state.get('judge_decision', '') if isinstance(risk_state, dict) else str(risk_state)
+                            if risk_decision and len(str(risk_decision).strip()) > 10:
+                                reports['risk_management_decision'] = str(risk_decision).strip()
 
-                            if risk_decision and len(risk_decision.strip()) > 10:
-                                reports['risk_management_decision'] = risk_decision.strip()
+                    # =====================================================
+                    # 第五阶段：最终决策
+                    # =====================================================
+                    # 13. 最终交易决策
+                    final_decision = getattr(state, 'final_trade_decision', '') if hasattr(state, 'final_trade_decision') else state.get('final_trade_decision', '') if isinstance(state, dict) else ''
+                    if isinstance(final_decision, str) and len(final_decision.strip()) > 10:
+                        reports['final_trade_decision'] = final_decision.strip()
 
-                    logger.info(f"📊 从state中提取到 {len(reports)} 个报告: {list(reports.keys())}")
+                    logger.info(f"📊 从state中提取到 {len(reports)} 个报告，按执行顺序排列: {list(reports.keys())}")
 
                 except Exception as e:
                     logger.warning(f"⚠️ 处理state中的reports时出错: {e}")

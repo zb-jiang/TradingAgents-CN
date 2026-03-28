@@ -188,7 +188,8 @@ def create_basic_mongodb_data(client):
                 "full_name": "系统管理员",
                 "role": "admin",
                 "is_active": True,
-                "is_superuser": True,
+                "is_admin": True,  # 使用 is_admin 与 User 模型保持一致
+                "is_superuser": True,  # 保留兼容性
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
                 "settings": {

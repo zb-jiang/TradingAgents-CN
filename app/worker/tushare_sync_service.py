@@ -43,7 +43,7 @@ class TushareSyncService:
         self.stock_service = get_stock_data_service()
         self.historical_service = None  # 延迟初始化
         self.news_service = None  # 延迟初始化
-        self.db = get_mongo_db()
+        self.db = None  # 延迟初始化，在initialize中获取
         self.settings = settings
 
         # 同步配置
@@ -55,9 +55,18 @@ class TushareSyncService:
         tushare_tier = getattr(settings, "TUSHARE_TIER", "standard")  # free/basic/standard/premium/vip
         safety_margin = float(getattr(settings, "TUSHARE_RATE_LIMIT_SAFETY_MARGIN", "0.8"))
         self.rate_limiter = get_tushare_rate_limiter(tier=tushare_tier, safety_margin=safety_margin)
-    
+
+    def _get_db(self):
+        """获取数据库连接（延迟初始化）"""
+        if self.db is None:
+            self.db = get_mongo_db()
+        return self.db
+
     async def initialize(self):
         """初始化同步服务"""
+        # 先初始化数据库连接
+        self._get_db()
+
         success = await self.provider.connect()
         if not success:
             raise RuntimeError("❌ Tushare连接失败，无法启动同步服务")
@@ -582,7 +591,7 @@ class TushareSyncService:
             if symbols is None:
                 # 查询所有A股股票（兼容不同的数据结构），排除退市股票
                 # 优先使用 market_info.market，降级到 category 字段
-                cursor = self.db.stock_basic_info.find(
+                cursor = self._get_db().stock_basic_info.find(
                     {
                         "$and": [
                             {
@@ -805,7 +814,7 @@ class TushareSyncService:
                         return latest_date
                 else:
                     # 🔥 没有历史数据时，从上市日期开始全量同步
-                    stock_info = await self.db.stock_basic_info.find_one(
+                    stock_info = await self._get_db().stock_basic_info.find_one(
                         {"code": symbol},
                         {"list_date": 1}
                     )
@@ -857,7 +866,7 @@ class TushareSyncService:
         try:
             # 获取股票列表
             if symbols is None:
-                cursor = self.db.stock_basic_info.find(
+                cursor = self._get_db().stock_basic_info.find(
                     {
                         "$or": [
                             {"market_info.market": "CN"},  # 新数据结构
@@ -984,15 +993,15 @@ class TushareSyncService:
         """获取同步状态"""
         try:
             # 统计各集合的数据量
-            basic_info_count = await self.db.stock_basic_info.count_documents({})
-            quotes_count = await self.db.market_quotes.count_documents({})
+            basic_info_count = await self._get_db().stock_basic_info.count_documents({})
+            quotes_count = await self._get_db().market_quotes.count_documents({})
 
             # 获取最新更新时间
-            latest_basic = await self.db.stock_basic_info.find_one(
+            latest_basic = await self._get_db().stock_basic_info.find_one(
                 {},
                 sort=[("updated_at", -1)]
             )
-            latest_quotes = await self.db.market_quotes.find_one(
+            latest_quotes = await self._get_db().market_quotes.find_one(
                 {},
                 sort=[("updated_at", -1)]
             )
@@ -1186,7 +1195,7 @@ class TushareSyncService:
         """
         try:
             # 查询执行记录，检查 cancel_requested 标记
-            execution = await self.db.scheduler_executions.find_one(
+            execution = await self._get_db().scheduler_executions.find_one(
                 {"job_id": job_id, "status": "running"},
                 sort=[("timestamp", -1)]
             )
