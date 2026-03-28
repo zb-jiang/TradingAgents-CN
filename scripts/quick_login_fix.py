@@ -4,12 +4,17 @@
 专门用于解决新机器部署后的登录问题
 """
 
+import hashlib
 import json
 import os
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+
+def hash_password(password: str) -> str:
+    """SHA256 密码哈希"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent.parent
@@ -179,7 +184,7 @@ def create_basic_mongodb_data(client):
             admin_user = {
                 "username": "admin",
                 "email": "admin@tradingagents.cn",
-                "password": admin_password,  # 开源版使用明文密码
+                "hashed_password": hash_password(admin_password),  # 使用哈希密码
                 "full_name": "系统管理员",
                 "role": "admin",
                 "is_active": True,
