@@ -39,6 +39,9 @@
 | Node.js | 18.x 或更高 | 前端构建需要 |
 | Docker | 20.x 或更高 | Docker部署需要 |
 | Git | 最新版本 | 代码克隆需要 |
+| Pandoc | 2.14+ | PDF/Word报告导出需要 |
+
+> **注意**：Pandoc 是可选依赖，仅在使用**报告导出功能**（下载PDF/Word格式的分析报告）时才需要安装。
 
 ---
 
@@ -411,6 +414,64 @@ docker load -i ~/frontend.tar
 # 启动服务
 docker compose up -d
 ```
+
+---
+
+### 安装 Pandoc（可选，用于报告导出）
+
+如果需要使用**PDF/Word 报告导出功能**，需要在服务器上安装 Pandoc。
+
+#### Windows 安装 Pandoc
+
+**方法一：使用 Chocolatey（推荐）**
+
+```powershell
+# 安装 Chocolatey（如果未安装）
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# 安装 Pandoc
+choco install pandoc -y
+
+# 验证安装
+pandoc --version
+```
+
+**方法二：手动安装**
+
+1. 访问 https://github.com/jgm/pandoc/releases
+2. 下载 `pandoc-x.x.x-windows-x86_64.msi`
+3. 运行安装程序
+4. 将安装目录（如 `C:\Program Files\Pandoc`）添加到系统 PATH
+5. 验证安装：
+   ```powershell
+   pandoc --version
+   ```
+
+#### Ubuntu 安装 Pandoc
+
+```bash
+# 更新软件包列表
+sudo apt update
+
+# 安装 Pandoc
+sudo apt install pandoc -y
+
+# 验证安装
+pandoc --version
+```
+
+#### Docker 环境安装 Pandoc
+
+如果使用 Docker 部署，需要在 Dockerfile 中添加 Pandoc 安装：
+
+```dockerfile
+# 在 Dockerfile.backend 中添加
+RUN apt-get update && apt-get install -y pandoc
+```
+
+> **提示**：Pandoc 安装后，重启后端服务即可使用 PDF/Word 导出功能。
 
 ---
 
@@ -955,6 +1016,37 @@ node --version  # 需要18.x或更高
 # 或参考详细解决方案
 # docs/troubleshooting/windows10-chromadb-fix.md
 ```
+
+### 9. PDF/Word报告导出失败
+
+**问题**: 下载PDF或Word报告时提示"需要安装 pandoc 工具"
+
+**解决方案**:
+
+**Windows:**
+```powershell
+# 使用 Chocolatey 安装
+choco install pandoc -y
+
+# 或手动安装
+# 1. 下载: https://github.com/jgm/pandoc/releases
+# 2. 运行安装程序
+# 3. 重启后端服务
+```
+
+**Ubuntu:**
+```bash
+sudo apt update
+sudo apt install pandoc -y
+```
+
+**Docker:**
+```dockerfile
+# 在 Dockerfile.backend 中添加
+RUN apt-get update && apt-get install -y pandoc
+```
+
+安装完成后**重启后端服务**即可。
 
 ---
 
