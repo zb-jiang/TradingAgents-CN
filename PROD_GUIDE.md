@@ -286,10 +286,11 @@ cat .env | grep -E "^(MONGODB_|REDIS_|JWT_SECRET|CSRF_SECRET|HOST|PORT|DEBUG|TRA
 | `JWT_SECRET` | 至少32字符随机字符串 | `JWT=$(openssl rand -base64 32); sed -i "s|JWT_SECRET=.*|JWT_SECRET=$JWT|g" .env` |
 | `CSRF_SECRET` | 至少32字符随机字符串 | `CSRF=$(openssl rand -base64 32); sed -i "s|CSRF_SECRET=.*|CSRF_SECRET=$CSRF|g" .env` |
 | `LOG_FILE` | 日志文件路径（改为绝对路径） | `sed -i 's|LOG_FILE=logs/|LOG_FILE=/home/zbjiang/tradingagents/logs/|g' .env` |
+| `TA_USE_APP_CACHE` | 启用 MongoDB 应用缓存（建议生产开启） | `sed -i 's|^TA_USE_APP_CACHE=.*|TA_USE_APP_CACHE=true|g' .env` |
 
 > 💡 **说明**：
 > - `ALLOWED_ORIGINS` 保留 `localhost` 即可，因为前后端在同一服务器
-> - 只需执行上述三条 `sed` 命令快速修改
+> - 只需执行上述四条 `sed` 命令快速修改
 
 ---
 
@@ -339,6 +340,35 @@ sudo systemctl daemon-reload
 
 # 启用开机自启（仅后端）
 sudo systemctl enable tradingagents-backend.service
+```
+
+#### 5.2.1 强制固定 TA_USE_APP_CACHE=true（推荐）
+
+当服务由 systemd 启动时，运行环境可能覆盖 `.env`。建议在服务级别显式固定该变量，避免出现 `TA_USE_APP_CACHE evaluated -> False` 导致个股分析读取链路异常。
+
+```bash
+# 创建 service override 目录
+sudo mkdir -p /etc/systemd/system/tradingagents-backend.service.d
+
+# 写入覆盖配置（仅追加该变量，不改原 service 文件）
+sudo tee /etc/systemd/system/tradingagents-backend.service.d/override.conf >/dev/null << 'EOF'
+[Service]
+Environment=TA_USE_APP_CACHE=true
+EOF
+
+# 重新加载并重启后端
+sudo systemctl daemon-reload
+sudo systemctl restart tradingagents-backend.service
+```
+
+验证生效：
+
+```bash
+# 查看 systemd 环境变量是否注入成功
+systemctl show tradingagents-backend.service -p Environment
+
+# 查看运行时评估结果（应出现 True）
+grep -n "TA_USE_APP_CACHE evaluated" /home/zbjiang/tradingagents/logs/backend.log | tail -n 20
 ```
 
 ---
@@ -763,6 +793,20 @@ sudo lsof -i :27017
 sudo lsof -i :6379
 ```
 
+#### 6. 个股分析提示“数据不全”或无法分析
+
+常见原因是 `TA_USE_APP_CACHE` 在服务进程中未生效，导致后端未优先读取 MongoDB 缓存。按以下顺序排查：
+
+```bash
+# 1) 检查 systemd 服务是否注入变量
+systemctl show tradingagents-backend.service -p Environment
+
+# 2) 检查运行时是否评估为 True
+grep -n "TA_USE_APP_CACHE evaluated" /home/zbjiang/tradingagents/logs/backend.log | tail -n 20
+```
+
+若不是 `True`，执行“5.2.1 强制固定 TA_USE_APP_CACHE=true（推荐）”后重启服务。
+
 ---
 
 ## 生产环境检查清单
@@ -773,6 +817,7 @@ sudo lsof -i :6379
 - [ ] 配置了正确的 CORS 地址
 - [ ] 启用了防火墙，**只开放 3000 端口**（前端）
 - [ ] MongoDB 和 Redis **仅绑定 127.0.0.1**，不暴露到外网
+- [ ] `TA_USE_APP_CACHE=true` 已在 systemd 服务环境中生效
 - [ ] 配置了 systemd 服务开机自启
 - [ ] 配置了自动备份
 - [ ] 配置了日志轮转
